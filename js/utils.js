@@ -580,6 +580,61 @@ export const createButtonsSection = () => {
   return section;
 };
 
+/*This function checks if a string looks like HTML */
+export const isProbablyHtml = (value) => {
+  const input = String(value ?? "").trim();
+  if (!input) return false;
+  return /<\/?[a-z][\s\S]*>/i.test(input);
+};
+
+/*This function builds the shared note view */
+export const buildSharedNoteContent = (container, note) => {
+  if (!container) return;
+  const tags = Array.isArray(note?.tags) ? note.tags.filter(Boolean) : [];
+
+  container.innerHTML = noteContentTemplate({ isCreateMode: false });
+  container.classList.add("note-content--readonly");
+
+  container
+    .querySelector("[data-tag-flex]")
+    .append(createTagIcon(), createTextSpan("Tags"));
+
+  container
+    .querySelector("[data-date-flex]")
+    .append(createDateIcon(), createTextSpan("Last edited"));
+
+  const titleInput = container.querySelector("[data-note-title]");
+  if (titleInput) {
+    titleInput.value = note?.title ?? "";
+    titleInput.setAttribute("readonly", "true");
+  }
+
+  const tagsInput = container.querySelector("[data-note-tags]");
+  if (tagsInput) {
+    tagsInput.value = tags.join(", ");
+    tagsInput.setAttribute("readonly", "true");
+  }
+
+  const lastEdited = container.querySelector("[data-last-edited-value]");
+  if (lastEdited) {
+    lastEdited.textContent = note?.lastEdited || "Not yet saved";
+  }
+
+  const contentField = container.querySelector("[data-note-content]");
+  if (contentField) {
+    const display = document.createElement("div");
+    display.className = "note-content__share-body";
+    display.setAttribute("data-note-content-display", "");
+    const value = note?.content ?? "";
+    if (isProbablyHtml(value)) {
+      display.innerHTML = value;
+    } else {
+      display.textContent = value;
+    }
+    contentField.replaceWith(display);
+  }
+};
+
 /*This function encodes a shared note payload for URLs */
 export const encodeSharePayload = (note = {}) => {
   const payload = {
@@ -609,6 +664,28 @@ export const buildShareUrl = (token) => {
   url.hash = "";
   url.searchParams.set("share", token);
   return url.toString();
+};
+
+/*This function decodes a shared note payload token */
+export const decodeSharePayload = (token) => {
+  if (!token) return null;
+
+  const padded = token
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(token.length / 4) * 4, "=");
+
+  try {
+    const decoded = atob(padded);
+    const json = decodeURIComponent(
+      Array.from(decoded)
+        .map((ch) => `%${ch.charCodeAt(0).toString(16).padStart(2, "0")}`)
+        .join(""),
+    );
+    return safeParse(json, null);
+  } catch (err) {
+    return null;
+  }
 };
 
 /*This function updates the share panel link */

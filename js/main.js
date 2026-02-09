@@ -9,8 +9,10 @@ import {
 import { navigateTo, renderAllNotes, renderPage, showToast } from "./ui.js";
 import {
   diffTags,
+  decodeSharePayload,
   encodeSharePayload,
   buildShareUrl,
+  buildSharedNoteContent,
   getDocument,
   getCheckedValue,
   getFormValues,
@@ -186,11 +188,47 @@ const initSettingsPage = (prefs) => {
   });
 };
 
+const initShareView = () => {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("share");
+  if (!token) return false;
+
+  const payload = decodeSharePayload(token);
+  document.body.classList.add("is-share");
+
+  const headerTitle = getDocument("query", ".page-header__title");
+  if (headerTitle) {
+    headerTitle.textContent = payload?.title
+      ? `Shared: ${payload.title}`
+      : "Shared Note";
+  }
+
+  const container = getDocument("query", ".note-content");
+  if (!container) return true;
+
+  if (!payload) {
+    container.innerHTML = `
+      <div class="note-content__empty-state">
+        <p class="note-content__empty-title">Shared note not available.</p>
+        <p class="note-content__empty-text">
+          This link may be invalid or expired.
+        </p>
+      </div>
+    `;
+    return true;
+  }
+
+  buildSharedNoteContent(container, payload);
+  return true;
+};
+
 // this is the main initialization function
 const init = async () => {
   const prefs = storage.loadPreferences();
   applyTheme(prefs.theme);
   applyFont(prefs.font);
+
+  if (initShareView()) return;
 
   if (getDocument("query", ".settings-page")) {
     initSettingsPage(prefs);

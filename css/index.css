@@ -867,6 +867,55 @@ body.is-modal-open {
   overflow: hidden;
 }
 
+body.is-share .sidebar-navigation,
+body.is-share .sidebar-all-notes,
+body.is-share .sidebar-right-menu {
+  display: none;
+}
+
+body.is-share .page-header__search-field,
+body.is-share .page-header__settings-button {
+  display: none;
+}
+
+body.is-share .page-main {
+  padding-right: 0;
+}
+
+body.is-share .note-content {
+  border-right: none;
+}
+
+body.is-share .buttons-section,
+body.is-share .note-content__share {
+  display: none;
+}
+
+.note-content__share-body {
+  white-space: pre-wrap;
+  width: 100%;
+}
+
+.note-content__empty-state {
+  border: 1px solid var(--note-content-divider-default);
+  border-radius: var(--radius-8);
+  padding: var(--spacing-200);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-075);
+}
+
+.note-content__empty-title {
+  font-size: var(--text-preset-3-font-size);
+  font-weight: var(--text-preset-3-font-weight);
+  color: var(--sidebar-text-primary);
+}
+
+.note-content__empty-text {
+  color: var(--note-content-text-muted);
+  font-size: var(--text-preset-4-5-font-size);
+}
+
 /* Toasts */
 .toast-container {
   position: fixed;
