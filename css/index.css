@@ -349,6 +349,28 @@ body {
   color: var(--all-notes-sidebar-text-secondary-disabled);
 }
 
+.sidebar-all-notes__btn--secondary {
+  background-color: var(--all-notes-sidebar-bg-secondary);
+  color: var(--all-notes-sidebar-text-primary);
+  border: none;
+}
+
+.sidebar-all-notes__btn--secondary:hover {
+  background-color: var(--all-notes-sidebar-bg-active);
+}
+
+.sidebar-all-notes__btn--secondary:focus-visible {
+  outline: none;
+  box-shadow:
+    0px 0px 0px 2px var(--all-notes-sidebar-border-primary-focus),
+    0px 0px 0px 4px var(--all-notes-sidebar-border-secondary-focus);
+}
+
+.sidebar-all-notes__btn--secondary:disabled {
+  background-color: var(--all-notes-sidebar-bg-primary-disabled);
+  color: var(--all-notes-sidebar-text-secondary-disabled);
+}
+
 body.is-archived .sidebar-all-notes__btn {
   display: none;
 }

@@ -26,6 +26,8 @@ import {
   normalizeFontSelection,
   normalizeThemeSelection,
 } from "./theme.js";
+import { exportAllNotesAsJson } from "./export.js";
+import { importNotesFromFile } from "./import.js";
 
 /* this function intializes setting panels behavior */
 const initSettingsPanels = (defaultPanelId = "color-theme") => {
@@ -297,6 +299,47 @@ const init = async () => {
     }
   });
 
+  const importInput = getDocument("query", "[data-import-input]");
+
+  const refreshNotesFromStorage = () => {
+    const nextNotes = storage.loadNotes().map((note) => normalizeNote(note));
+    const activeStillExists = nextNotes.some(
+      (note) => note.id === state.activeNoteId,
+    );
+    state.notes = nextNotes;
+    state.activeNoteId = activeStillExists
+      ? state.activeNoteId
+      : nextNotes[0]?.id || null;
+
+    renderAllNotes(state.notes, { activeNoteId: state.activeNoteId });
+    renderPage(state.currentPage, state);
+  };
+
+  if (importInput) {
+    importInput.addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const result = await importNotesFromFile(file, { mode: "merge" });
+      if (!result.ok) {
+        showToast("import-failed", {
+          message: result.error || "Could not import notes.",
+        });
+        event.target.value = "";
+        return;
+      }
+
+      refreshNotesFromStorage();
+      const importedCount =
+        typeof result.imported === "number" ? result.imported : 0;
+      const suffix = importedCount === 1 ? "" : "s";
+      showToast("imported", {
+        message: `Imported ${importedCount} note${suffix}.`,
+      });
+      event.target.value = "";
+    });
+  }
+
   document.addEventListener("click", async (event) => {
     const actionEl = event.target.closest("[data-action]");
     if (!actionEl) return;
@@ -304,6 +347,27 @@ const init = async () => {
     event.preventDefault();
 
     const action = actionEl.dataset.action;
+    if (action === "export-notes") {
+      const result = exportAllNotesAsJson();
+      if (!result.ok) {
+        showToast("export-failed", {
+          message: result.error || "Could not export notes.",
+        });
+        return;
+      }
+
+      const suffix = result.count === 1 ? "" : "s";
+      showToast("exported", {
+        message: `Exported ${result.count} note${suffix}.`,
+      });
+      return;
+    }
+
+    if (action === "import-notes") {
+      importInput?.click();
+      return;
+    }
+
     const activeNote = state.notes.find(
       (note) => note.id === state.activeNoteId,
     );

@@ -293,9 +293,30 @@
           <button
             class="sidebar-all-notes__btn sidebar-all-notes__btn--primary"
             data-route="create-note"
+            type="button"
           >
             + Create New Note
           </button>
+          <button
+            class="sidebar-all-notes__btn sidebar-all-notes__btn--secondary"
+            data-action="export-notes"
+            type="button"
+          >
+            Export Notes
+          </button>
+          <button
+            class="sidebar-all-notes__btn sidebar-all-notes__btn--secondary"
+            data-action="import-notes"
+            type="button"
+          >
+            Import Notes
+          </button>
+          <input
+            type="file"
+            accept="application/json"
+            data-import-input
+            hidden
+          />
 
           <ul class="sidebar-all-notes__nav">
             <li class="sidebar-all-notes__item">
