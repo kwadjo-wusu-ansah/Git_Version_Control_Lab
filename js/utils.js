@@ -156,6 +156,12 @@ export const toastDefinitions = {
   "share-link-generated": {
     message: "Share link generated.",
   },
+  "share-link-copied": {
+    message: "Share link copied.",
+  },
+  "share-link-copy-failed": {
+    message: "Could not copy share link.",
+  },
 };
 
 export const toastCheckmarkSvg = `
@@ -535,6 +541,13 @@ export const noteContentTemplate = ({ isCreateMode = false } = {}) => `
         aria-label="Share link"
         data-share-input
       />
+      <button
+        class="note-content__share-button"
+        type="button"
+        data-share-copy
+      >
+        Copy
+      </button>
     </div>
   </div>
 
@@ -702,6 +715,34 @@ export const setSharePanelLink = (link) => {
 
   panel.hidden = false;
   input.value = link;
+};
+
+/*This function copies share link to clipboard */
+export const copyShareLink = async (link) => {
+  const value = String(link ?? "");
+  if (!value) return { ok: false, error: "No share link available." };
+
+  try {
+    await navigator.clipboard.writeText(value);
+    return { ok: true };
+  } catch (err) {
+    try {
+      const temp = document.createElement("textarea");
+      temp.value = value;
+      temp.setAttribute("readonly", "true");
+      temp.style.position = "fixed";
+      temp.style.top = "-1000px";
+      document.body.appendChild(temp);
+      temp.select();
+      const success = document.execCommand("copy");
+      temp.remove();
+      return success
+        ? { ok: true }
+        : { ok: false, error: "Could not copy link." };
+    } catch (fallbackError) {
+      return { ok: false, error: "Could not copy link." };
+    }
+  }
 };
 
 /*this function returns the sidebar info element */

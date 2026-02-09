@@ -653,6 +653,40 @@ body.is-archived .sidebar-all-notes__btn {
   color: var(--sidebar-text-primary);
 }
 
+.note-content__share-button {
+  height: 36px;
+  padding: var(--spacing-075) var(--spacing-150);
+  border-radius: var(--radius-8);
+  border: none;
+  background-color: var(--neutral-800);
+  color: var(--neutral-0);
+  font-size: var(--text-preset-4-5-font-size);
+  font-weight: var(--text-preset-4-font-weight);
+  font-family: var(--text-preset-font-family-sans-serif);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.note-content__share-button:hover {
+  background-color: var(--neutral-700);
+}
+
+.note-content__share-button:focus-visible {
+  outline: none;
+  box-shadow:
+    0px 0px 0px 2px var(--neutral-0),
+    0px 0px 0px 4px var(--neutral-400);
+}
+
+:root[data-theme="dark"] .note-content__share-button {
+  background-color: var(--neutral-100);
+  color: var(--neutral-950);
+}
+
+:root[data-theme="dark"] .note-content__share-button:hover {
+  background-color: var(--neutral-200);
+}
+
 .note-content__divider {
   flex: 0 0 1px;
   height: 1px;

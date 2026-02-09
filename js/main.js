@@ -13,6 +13,7 @@ import {
   encodeSharePayload,
   buildShareUrl,
   buildSharedNoteContent,
+  copyShareLink,
   getDocument,
   getCheckedValue,
   getFormValues,
@@ -427,6 +428,21 @@ const init = async () => {
       renderPage(state.currentPage, state);
       showToast("note-deleted");
     }
+  });
+
+  document.addEventListener("click", async (event) => {
+    const copyButton = event.target.closest("[data-share-copy]");
+    if (!copyButton) return;
+
+    event.preventDefault();
+    const activeNote = state.notes.find(
+      (note) => note.id === state.activeNoteId,
+    );
+    if (!activeNote) return;
+
+    const link = state?.shareLinks?.[activeNote.id] || "";
+    const result = await copyShareLink(link);
+    showToast(result.ok ? "share-link-copied" : "share-link-copy-failed");
   });
 };
 
