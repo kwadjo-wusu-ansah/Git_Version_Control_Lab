@@ -223,6 +223,40 @@ export const updateTagList = (tags) => {
     .join("");
 };
 
+// this function updates the category list in the sidebar
+export const updateCategoryList = (categories) => {
+  const categoryListEl = getDocument(
+    "query",
+    ".sidebar-navigation__categories-list",
+  );
+  if (!categoryListEl) {
+    console.warn(
+      "Category list container not found. Add .sidebar-navigation__categories-list to your HTML.",
+    );
+    return;
+  }
+
+  const unique = Array.from(
+    new Set((categories ?? []).map((c) => String(c).trim()).filter(Boolean)),
+  );
+
+  const categoryIcon = createSidebarTagIcon();
+
+  categoryListEl.innerHTML = unique
+    .map(
+      (category) => `
+      <li class="sidebar-navigation__item">
+        <div class="sidebar-navigation_link-tag" data-category="${category}">
+            ${categoryIcon.outerHTML}
+            <p class="sidebar-navigation__item-title">${category}</p>
+        </div>
+      </li>
+      
+      `,
+    )
+    .join("");
+};
+
 
 
 // this function toggles archived notes view
@@ -349,4 +383,3 @@ export const navigateTo = (pageKey, state, options = {}) => {
   }
   renderPage(nextPage, state);
 };
-

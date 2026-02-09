@@ -6,13 +6,20 @@ import {
   toggleArchive,
   updateNote,
 } from "./noteManager.js";
-import { navigateTo, renderAllNotes, renderPage, showToast } from "./ui.js";
+import {
+  navigateTo,
+  renderAllNotes,
+  renderPage,
+  showToast,
+  updateCategoryList,
+} from "./ui.js";
 import {
   diffTags,
   getDocument,
   getCheckedValue,
   getFormValues,
   hasNoteChanges,
+  normalizeCategoryName,
   normalizeTags,
   normalizeSearchQuery,
   setCheckedValue,
@@ -208,14 +215,50 @@ const init = async () => {
 
   const notes = storage.loadNotes().map((note) => normalizeNote(note));
   renderAllNotes(notes, { activeNoteId: notes[0]?.id || null });
+  const categories = storage.loadCategories();
+  updateCategoryList(categories);
 
   const state = {
     notes,
     activeNoteId: notes[0]?.id || null,
     currentPage: "all-notes",
+    categories,
   };
 
   initSpa(state);
+
+  const categoryInput = getDocument("query", "[data-category-input]");
+
+  const addCategory = (rawValue) => {
+    const normalized = normalizeCategoryName(rawValue);
+    if (!normalized) return { ok: false, error: "Enter a category name." };
+
+    const exists = state.categories.some(
+      (category) => category.toLowerCase() === normalized.toLowerCase(),
+    );
+    if (exists) {
+      return { ok: false, error: "Category already exists." };
+    }
+
+    const nextCategories = [...state.categories, normalized];
+    const result = storage.saveCategories(nextCategories);
+    if (!result.ok) return result;
+
+    state.categories = nextCategories;
+    updateCategoryList(state.categories);
+    return { ok: true };
+  };
+
+  if (categoryInput) {
+    categoryInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      const result = addCategory(categoryInput.value);
+      if (result.ok) {
+        categoryInput.value = "";
+      }
+    });
+  }
 
   document.addEventListener("click", (event) => {
     const saveButton = event.target.closest(".buttons-section__btn--primary");
@@ -304,6 +347,15 @@ const init = async () => {
     event.preventDefault();
 
     const action = actionEl.dataset.action;
+    if (action === "add-category") {
+      if (!categoryInput) return;
+      const result = addCategory(categoryInput.value);
+      if (result.ok) {
+        categoryInput.value = "";
+      }
+      return;
+    }
+
     const activeNote = state.notes.find(
       (note) => note.id === state.activeNoteId,
     );

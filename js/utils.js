@@ -2,6 +2,7 @@ export const STORAGE_KEY = "notes";
 export const PREFS_KEY = "prefs";
 export const DRAFT_KEY = "draft";
 export const SEEDED_KEY = "seeded_v1";
+export const CATEGORIES_KEY = "categories";
 
 export const DEFAULT_PREFS = {
   theme: "dark",
@@ -89,6 +90,11 @@ export function normalizeTags(tags) {
   tagsArray = tagsArray.filter(Boolean);
 
   return tagsArray;
+}
+
+/*this function normalizes a category name */
+export function normalizeCategoryName(category) {
+  return String(category ?? "").trim();
 }
 
 /*This function diffs two sets of tags and returns added and removed tags */
