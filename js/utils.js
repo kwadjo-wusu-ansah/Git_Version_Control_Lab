@@ -537,6 +537,33 @@ export const noteContentTemplate = ({ isCreateMode = false } = {}) => `
     </div>
   </div>
 
+  <div class="note-content__toolbar" role="toolbar" aria-label="Formatting">
+    <button
+      class="note-content__tool"
+      type="button"
+      data-format="bold"
+      aria-label="Bold"
+    >
+      <span class="note-content__tool-text note-content__tool-text--bold">B</span>
+    </button>
+    <button
+      class="note-content__tool"
+      type="button"
+      data-format="italic"
+      aria-label="Italic"
+    >
+      <span class="note-content__tool-text note-content__tool-text--italic">I</span>
+    </button>
+    <button
+      class="note-content__tool"
+      type="button"
+      data-format="underline"
+      aria-label="Underline"
+    >
+      <span class="note-content__tool-text note-content__tool-text--underline">U</span>
+    </button>
+  </div>
+
   <hr class="note-content__divider" />
 
   <div class="note-content__content-container">
