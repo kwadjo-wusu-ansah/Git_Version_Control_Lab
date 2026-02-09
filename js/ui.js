@@ -362,13 +362,17 @@ export const renderPage = (pageKey, state) => {
   container.innerHTML = "";
 
   if (page?.mode === "create") {
-    buildCreateNoteContent(container);
+    buildCreateNoteContent(container, {
+      categories: state?.categories || [],
+    });
     return;
   }
 
   if (!activeNote) return;
 
-  buildAllNotesContent(container, activeNote);
+  buildAllNotesContent(container, activeNote, {
+    categories: state?.categories || [],
+  });
 };
 
 // this function navigates to a different page/route

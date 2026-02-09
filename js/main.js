@@ -22,6 +22,7 @@ import {
   normalizeCategoryName,
   normalizeTags,
   normalizeSearchQuery,
+  setCategoryOptions,
   setCheckedValue,
   openConfirmModal,
   isTagRoute,
@@ -246,6 +247,10 @@ const init = async () => {
 
     state.categories = nextCategories;
     updateCategoryList(state.categories);
+    const categorySelect = getDocument("query", "[data-note-category]");
+    if (categorySelect) {
+      setCategoryOptions(categorySelect, state.categories, categorySelect.value);
+    }
     return { ok: true };
   };
 
@@ -277,7 +282,12 @@ const init = async () => {
         if (!values.title && !values.content && values.tags.length === 0)
           return;
 
-        const newNote = createNote(values.title, values.content, values.tags);
+        const newNote = createNote(
+          values.title,
+          values.content,
+          values.tags,
+          values.category,
+        );
         state.notes = [newNote, ...state.notes];
         state.activeNoteId = newNote.id;
 
@@ -313,6 +323,7 @@ const init = async () => {
           title: values.title,
           content: values.content,
           tags: values.tags,
+          category: values.category,
         });
 
         const result = storage.saveNotes(state.notes);
