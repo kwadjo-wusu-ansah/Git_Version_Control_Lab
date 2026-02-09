@@ -93,6 +93,14 @@ export const renderNote = (note, { isActive = false } = {}) => {
     return;
   }
 
+  const categoryLabel = String(note?.category ?? "").trim();
+  const categoryHTML = categoryLabel
+    ? `
+        <div class="sidebar-all-notes__tags sidebar-all-notes__tags--category">
+          <p class="sidebar-all-notes__tags-text">Category: ${categoryLabel}</p>
+        </div>`
+    : "";
+
   const tagsHTML = Array.isArray(note.tags)
     ? note.tags
         .map(
@@ -104,6 +112,8 @@ export const renderNote = (note, { isActive = false } = {}) => {
         .join("")
     : "";
 
+  const badgesHTML = `${categoryHTML}${tagsHTML}`;
+
   // Use data-note-id so event delegation can find the note later
   const noteTemplate = `
     <li class="sidebar-all-notes__item${
@@ -113,7 +123,7 @@ export const renderNote = (note, { isActive = false } = {}) => {
         <p class="sidebar-all-notes__item-title">${note.title}</p>
 
         <div class="sidebar-all-notes__note-item-tags">
-          ${tagsHTML}
+          ${badgesHTML}
         </div>
 
         <p class="sidebar-all-notes__note-item-date">${note.lastEdited}</p>

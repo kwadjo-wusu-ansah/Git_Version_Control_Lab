@@ -498,6 +498,11 @@ body.is-archived .sidebar-all-notes__btn {
   border-radius: var(--radius-4);
 }
 
+.sidebar-all-notes__tags--category {
+  background-color: var(--all-notes-sidebar-bg-active);
+  border: 1px solid var(--all-notes-sidebar-divider-default);
+}
+
 .sidebar-all-notes__tags-text {
   color: var(--all-notes-sidebar-text-primary);
   font-size: var(--text-preset-6-font-size);
