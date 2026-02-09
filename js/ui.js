@@ -8,8 +8,10 @@ import {
   getActiveNote,
   getDocument,
   getNotesForRoute,
+  getCategoryFromRoute,
   getTagFromRoute,
   getToastContainer,
+  isCategoryRoute,
   isSearchRoute,
   isTagRoute,
   normalizeSearchQuery,
@@ -246,10 +248,11 @@ export const updateCategoryList = (categories) => {
     .map(
       (category) => `
       <li class="sidebar-navigation__item">
-        <div class="sidebar-navigation_link-tag" data-category="${category}">
+        <a href="#" class="sidebar-navigation_link-tag" data-route="category-${category}">
             ${categoryIcon.outerHTML}
             <p class="sidebar-navigation__item-title">${category}</p>
-        </div>
+            ${chevronSvg}
+        </a>
       </li>
       
       `,
@@ -309,6 +312,15 @@ export const renderPage = (pageKey, state) => {
       highlight: getTagFromRoute(resolvedKey),
     });
     setSidebarInfo({ mode: "tag", tag: getTagFromRoute(resolvedKey) });
+  } else if (isCategoryRoute(resolvedKey)) {
+    setHeaderTitle({
+      mutedPrefix: "Notes in:",
+      highlight: getCategoryFromRoute(resolvedKey),
+    });
+    setSidebarInfo({
+      mode: "category",
+      category: getCategoryFromRoute(resolvedKey),
+    });
   } else if (isSearchMode) {
     setHeaderTitle({
       mutedPrefix: "Showing results for:",

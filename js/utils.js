@@ -498,6 +498,11 @@ export const isTagRoute = (route) => {
   return typeof route === "string" && route.startsWith("tag-");
 };
 
+/*this function return if this is a category route */
+export const isCategoryRoute = (route) => {
+  return typeof route === "string" && route.startsWith("category-");
+};
+
 /*this function return if this is a search route */
 export const isSearchRoute = (route) => {
   return route === "search";
@@ -513,6 +518,16 @@ export const getTagFromRoute = (route) => {
   }
 };
 
+/*this function returns the category from a category route */
+export const getCategoryFromRoute = (route) => {
+  if (!isCategoryRoute(route)) return "";
+  try {
+    return decodeURIComponent(route.slice(9));
+  } catch (err) {
+    return route.slice(9);
+  }
+};
+
 /*this function filters notes by a specific tag */
 export const filterNotesByTag = (notes, tag) => {
   const t = String(tag ?? "")
@@ -524,6 +539,16 @@ export const filterNotesByTag = (notes, tag) => {
     Array.isArray(note?.tags)
       ? note.tags.some((x) => String(x).toLowerCase() === t)
       : false,
+  );
+};
+
+/*this function filters notes by a specific category */
+export const filterNotesByCategory = (notes, category) => {
+  const c = normalizeCategoryName(category).toLowerCase();
+  if (!c) return notes;
+
+  return notes.filter(
+    (note) => normalizeCategoryName(note?.category).toLowerCase() === c,
   );
 };
 
@@ -643,7 +668,7 @@ export const getSidebarInfoElement = () => {
 };
 
 /*this function sets the sidebar all-notes info element for (archived, tag , search)*/
-export const setSidebarInfo = ({ mode, tag, query } = {}) => {
+export const setSidebarInfo = ({ mode, tag, category, query } = {}) => {
   const info = getSidebarInfoElement();
   if (!info) return;
 
@@ -672,6 +697,18 @@ export const setSidebarInfo = ({ mode, tag, query } = {}) => {
     highlight.textContent = tag || "";
     info.append(highlight);
     info.append('" tag are shown here.');
+    return;
+  }
+
+  if (mode === "category") {
+    info.className =
+      "sidebar-all-notes__helper-text sidebar-all-notes__helper-text--tag";
+    info.append('All notes in the "');
+    const highlight = document.createElement("span");
+    highlight.className = "sidebar-all-notes__helper-highlight";
+    highlight.textContent = category || "";
+    info.append(highlight);
+    info.append('" category are shown here.');
     return;
   }
 
@@ -954,7 +991,9 @@ export const pages = {
 };
 /*this function resolves the page key based on the current route*/
 export const resolvePageKey = (pageKey) => {
-  return pages[pageKey] || isTagRoute(pageKey) ? pageKey : "all-notes";
+  return pages[pageKey] || isTagRoute(pageKey) || isCategoryRoute(pageKey)
+    ? pageKey
+    : "all-notes";
 };
 
 /*this function sets the header title based on the current route*/
@@ -994,6 +1033,9 @@ export const getNotesForRoute = (state, route, { query, searchFn } = {}) => {
   }
   if (isTagRoute(route)) {
     return filterNotesByTag(notes, getTagFromRoute(route));
+  }
+  if (isCategoryRoute(route)) {
+    return filterNotesByCategory(notes, getCategoryFromRoute(route));
   }
   if (isSearchRoute(route)) {
     return typeof searchFn === "function" ? searchFn(notes, query) : notes;
