@@ -20,6 +20,7 @@ import {
   renderRightMenu,
   resolveActiveNoteId,
   resolvePageKey,
+  setSharePanelLink,
   setHeaderTitle,
   setSearchInputValue,
   setSidebarInfo,
@@ -329,12 +330,15 @@ export const renderPage = (pageKey, state) => {
 
   if (page?.mode === "create") {
     buildCreateNoteContent(container);
+    setSharePanelLink("");
     return;
   }
 
   if (!activeNote) return;
 
   buildAllNotesContent(container, activeNote);
+  const shareLink = state?.shareLinks?.[activeNote.id] || "";
+  setSharePanelLink(shareLink);
 };
 
 // this function navigates to a different page/route
@@ -349,4 +353,3 @@ export const navigateTo = (pageKey, state, options = {}) => {
   }
   renderPage(nextPage, state);
 };
-

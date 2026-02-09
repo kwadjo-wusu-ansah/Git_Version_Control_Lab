@@ -624,6 +624,35 @@ body.is-archived .sidebar-all-notes__btn {
   flex: 0 0 115px;
 }
 
+.note-content__share {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-075);
+}
+
+.note-content__share-label {
+  color: var(--note-content-text-muted);
+  font-size: var(--text-preset-6-font-size);
+  letter-spacing: var(--text-preset-4-5-6-letter-spacing);
+}
+
+.note-content__share-control {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-100);
+}
+
+.note-content__share-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 1px solid var(--note-content-divider-default);
+  border-radius: var(--radius-8);
+  padding: var(--spacing-100) var(--spacing-150);
+  font: inherit;
+  color: var(--sidebar-text-primary);
+}
+
 .note-content__divider {
   flex: 0 0 1px;
   height: 1px;

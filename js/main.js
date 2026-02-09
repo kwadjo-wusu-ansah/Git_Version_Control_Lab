@@ -9,6 +9,8 @@ import {
 import { navigateTo, renderAllNotes, renderPage, showToast } from "./ui.js";
 import {
   diffTags,
+  encodeSharePayload,
+  buildShareUrl,
   getDocument,
   getCheckedValue,
   getFormValues,
@@ -213,6 +215,7 @@ const init = async () => {
     notes,
     activeNoteId: notes[0]?.id || null,
     currentPage: "all-notes",
+    shareLinks: {},
   };
 
   initSpa(state);
@@ -271,6 +274,9 @@ const init = async () => {
           content: values.content,
           tags: values.tags,
         });
+        if (state.shareLinks?.[activeNote.id]) {
+          delete state.shareLinks[activeNote.id];
+        }
 
         const result = storage.saveNotes(state.notes);
         if (!result.ok) {
@@ -331,6 +337,18 @@ const init = async () => {
       return;
     }
 
+    if (action === "share") {
+      const token = encodeSharePayload(activeNote);
+      const link = buildShareUrl(token);
+
+      state.shareLinks = state.shareLinks || {};
+      state.shareLinks[activeNote.id] = link;
+
+      renderPage(state.currentPage, state);
+      showToast("share-link-generated");
+      return;
+    }
+
     if (action === "restore") {
       state.notes = toggleArchive(state.notes, activeNote.id);
       const result = storage.saveNotes(state.notes);
@@ -355,6 +373,9 @@ const init = async () => {
       if (!confirmed) return;
 
       state.notes = deleteNote(state.notes, activeNote.id);
+      if (state.shareLinks?.[activeNote.id]) {
+        delete state.shareLinks[activeNote.id];
+      }
       if (state.activeNoteId === activeNote.id) {
         state.activeNoteId = null;
       }

@@ -153,6 +153,9 @@ export const toastDefinitions = {
   "tag-removed": {
     message: "Tag removed successfully!",
   },
+  "share-link-generated": {
+    message: "Share link generated.",
+  },
 };
 
 export const toastCheckmarkSvg = `
@@ -522,6 +525,19 @@ export const noteContentTemplate = ({ isCreateMode = false } = {}) => `
     </div>
   </div>
 
+  <div class="note-content__share" data-share-panel hidden>
+    <p class="note-content__share-label">Share link</p>
+    <div class="note-content__share-control">
+      <input
+        class="note-content__share-input"
+        type="text"
+        readonly
+        aria-label="Share link"
+        data-share-input
+      />
+    </div>
+  </div>
+
   <hr class="note-content__divider" />
 
   <div class="note-content__content-container">
@@ -562,6 +578,53 @@ export const createButtonsSection = () => {
   section.appendChild(cancelButton);
 
   return section;
+};
+
+/*This function encodes a shared note payload for URLs */
+export const encodeSharePayload = (note = {}) => {
+  const payload = {
+    id: note?.id ?? "",
+    title: note?.title ?? "",
+    content: note?.content ?? "",
+    tags: Array.isArray(note?.tags) ? note.tags : [],
+    created: note?.created ?? "",
+    lastEdited: note?.lastEdited ?? "",
+  };
+
+  const json = JSON.stringify(payload);
+  const encoded = btoa(
+    encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, code) =>
+      String.fromCharCode(parseInt(code, 16)),
+    ),
+  );
+
+  return encoded.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+};
+
+/*This function builds a shareable URL for a payload token */
+export const buildShareUrl = (token) => {
+  if (!token) return "";
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("share", token);
+  return url.toString();
+};
+
+/*This function updates the share panel link */
+export const setSharePanelLink = (link) => {
+  const panel = document.querySelector("[data-share-panel]");
+  const input = document.querySelector("[data-share-input]");
+  if (!panel || !input) return;
+
+  if (!link) {
+    panel.hidden = true;
+    input.value = "";
+    return;
+  }
+
+  panel.hidden = false;
+  input.value = link;
 };
 
 /*this function returns the sidebar info element */
@@ -706,6 +769,40 @@ export const deleteActionMarkup = `
     </a>
   </li>
 `;
+export const shareActionMarkup = `
+  <li class="sidebar-right-menu__item">
+    <a href="#" class="sidebar-right-menu_link" data-action="share">
+      <svg
+        class="sidebar-right-menu__item-icon-stroke"
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          d="M15 7h2a4 4 0 0 1 0 8h-2"
+        />
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          d="M9 17H7a4 4 0 0 1 0-8h2"
+        />
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          d="M8 12h8"
+        />
+      </svg>
+      <p class="sidebar-right-menu__item-title">Share Note</p>
+    </a>
+  </li>
+`;
 /*this function renders the right side menu based on the mode ) (create, empty, archived state)*/
 export const renderRightMenu = (mode = "default") => {
   const nav = document.querySelector(".sidebar-right-menu__nav");
@@ -722,11 +819,11 @@ export const renderRightMenu = (mode = "default") => {
   }
 
   if (mode === "archived") {
-    nav.innerHTML = `${restoreActionMarkup}${deleteActionMarkup}`;
+    nav.innerHTML = `${shareActionMarkup}${restoreActionMarkup}${deleteActionMarkup}`;
     return;
   }
 
-  nav.innerHTML = `${archiveActionMarkup}${deleteActionMarkup}`;
+  nav.innerHTML = `${shareActionMarkup}${archiveActionMarkup}${deleteActionMarkup}`;
 };
 
 /*this function render the create placeholder note in the sidebar */
