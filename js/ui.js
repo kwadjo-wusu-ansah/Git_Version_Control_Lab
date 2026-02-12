@@ -8,8 +8,10 @@ import {
   getActiveNote,
   getDocument,
   getNotesForRoute,
+  getCategoryFromRoute,
   getTagFromRoute,
   getToastContainer,
+  isCategoryRoute,
   isSearchRoute,
   isTagRoute,
   normalizeSearchQuery,
@@ -91,6 +93,14 @@ export const renderNote = (note, { isActive = false } = {}) => {
     return;
   }
 
+  const categoryLabel = String(note?.category ?? "").trim();
+  const categoryHTML = categoryLabel
+    ? `
+        <div class="sidebar-all-notes__tags sidebar-all-notes__tags--category">
+          <p class="sidebar-all-notes__tags-text">Category: ${categoryLabel}</p>
+        </div>`
+    : "";
+
   const tagsHTML = Array.isArray(note.tags)
     ? note.tags
         .map(
@@ -102,6 +112,8 @@ export const renderNote = (note, { isActive = false } = {}) => {
         .join("")
     : "";
 
+  const badgesHTML = `${categoryHTML}${tagsHTML}`;
+
   // Use data-note-id so event delegation can find the note later
   const noteTemplate = `
     <li class="sidebar-all-notes__item${
@@ -111,7 +123,7 @@ export const renderNote = (note, { isActive = false } = {}) => {
         <p class="sidebar-all-notes__item-title">${note.title}</p>
 
         <div class="sidebar-all-notes__note-item-tags">
-          ${tagsHTML}
+          ${badgesHTML}
         </div>
 
         <p class="sidebar-all-notes__note-item-date">${note.lastEdited}</p>
@@ -223,6 +235,41 @@ export const updateTagList = (tags) => {
     .join("");
 };
 
+// this function updates the category list in the sidebar
+export const updateCategoryList = (categories) => {
+  const categoryListEl = getDocument(
+    "query",
+    ".sidebar-navigation__categories-list",
+  );
+  if (!categoryListEl) {
+    console.warn(
+      "Category list container not found. Add .sidebar-navigation__categories-list to your HTML.",
+    );
+    return;
+  }
+
+  const unique = Array.from(
+    new Set((categories ?? []).map((c) => String(c).trim()).filter(Boolean)),
+  );
+
+  const categoryIcon = createSidebarTagIcon();
+
+  categoryListEl.innerHTML = unique
+    .map(
+      (category) => `
+      <li class="sidebar-navigation__item">
+        <a href="#" class="sidebar-navigation_link-tag" data-route="category-${category}">
+            ${categoryIcon.outerHTML}
+            <p class="sidebar-navigation__item-title">${category}</p>
+            ${chevronSvg}
+        </a>
+      </li>
+      
+      `,
+    )
+    .join("");
+};
+
 
 
 // this function toggles archived notes view
@@ -275,6 +322,15 @@ export const renderPage = (pageKey, state) => {
       highlight: getTagFromRoute(resolvedKey),
     });
     setSidebarInfo({ mode: "tag", tag: getTagFromRoute(resolvedKey) });
+  } else if (isCategoryRoute(resolvedKey)) {
+    setHeaderTitle({
+      mutedPrefix: "Notes in:",
+      highlight: getCategoryFromRoute(resolvedKey),
+    });
+    setSidebarInfo({
+      mode: "category",
+      category: getCategoryFromRoute(resolvedKey),
+    });
   } else if (isSearchMode) {
     setHeaderTitle({
       mutedPrefix: "Showing results for:",
@@ -328,13 +384,17 @@ export const renderPage = (pageKey, state) => {
   container.innerHTML = "";
 
   if (page?.mode === "create") {
-    buildCreateNoteContent(container);
+    buildCreateNoteContent(container, {
+      categories: state?.categories || [],
+    });
     return;
   }
 
   if (!activeNote) return;
 
-  buildAllNotesContent(container, activeNote);
+  buildAllNotesContent(container, activeNote, {
+    categories: state?.categories || [],
+  });
 };
 
 // this function navigates to a different page/route
@@ -349,4 +409,3 @@ export const navigateTo = (pageKey, state, options = {}) => {
   }
   renderPage(nextPage, state);
 };
-
