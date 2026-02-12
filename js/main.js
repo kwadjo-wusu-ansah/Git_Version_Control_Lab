@@ -6,7 +6,13 @@ import {
   toggleArchive,
   updateNote,
 } from "./noteManager.js";
-import { navigateTo, renderAllNotes, renderPage, showToast } from "./ui.js";
+import {
+  navigateTo,
+  renderAllNotes,
+  renderPage,
+  showToast,
+  updateCategoryList,
+} from "./ui.js";
 import {
   diffTags,
   decodeSharePayload,
@@ -18,8 +24,10 @@ import {
   getCheckedValue,
   getFormValues,
   hasNoteChanges,
+  normalizeCategoryName,
   normalizeTags,
   normalizeSearchQuery,
+  setCategoryOptions,
   setCheckedValue,
   openConfirmModal,
   isTagRoute,
@@ -189,6 +197,61 @@ const initSettingsPage = (prefs) => {
   });
 };
 
+// this function initializes formatting toolbar behavior
+const initFormattingToolbar = () => {
+  const validFormats = new Set(["bold", "italic", "underline"]);
+
+  const getEditor = () => getDocument("query", ".note-content__editor");
+
+  const setButtonState = (button, isActive) => {
+    button.classList.toggle("is-active", Boolean(isActive));
+  };
+
+  const syncToolbarState = () => {
+    const editor = getEditor();
+    if (!editor) return;
+
+    const selection = document.getSelection();
+    if (!selection || !selection.anchorNode) return;
+    if (!editor.contains(selection.anchorNode)) return;
+
+    const buttons = document.querySelectorAll("[data-format]");
+    buttons.forEach((button) => {
+      const format = button.getAttribute("data-format");
+      if (!validFormats.has(format)) return;
+      const isActive = document.queryCommandState(format);
+      setButtonState(button, isActive);
+    });
+  };
+
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-format]");
+    if (!button) return;
+
+    const format = button.getAttribute("data-format");
+    if (!validFormats.has(format)) return;
+
+    event.preventDefault();
+
+    const editor = getEditor();
+    if (!editor) return;
+
+    if (document.activeElement !== editor) {
+      editor.focus();
+    }
+
+    document.execCommand(format);
+    syncToolbarState();
+  });
+
+  document.addEventListener("selectionchange", syncToolbarState);
+  document.addEventListener("focusin", (event) => {
+    if (event.target.closest(".note-content__editor")) {
+      syncToolbarState();
+    }
+  });
+};
+
 const initShareView = () => {
   const params = new URLSearchParams(window.location.search);
   const token = params.get("share");
@@ -249,15 +312,56 @@ const init = async () => {
 
   const notes = storage.loadNotes().map((note) => normalizeNote(note));
   renderAllNotes(notes, { activeNoteId: notes[0]?.id || null });
+  const categories = storage.loadCategories();
+  updateCategoryList(categories);
 
   const state = {
     notes,
     activeNoteId: notes[0]?.id || null,
     currentPage: "all-notes",
+    categories,
     shareLinks: {},
   };
 
+  initFormattingToolbar();
   initSpa(state);
+
+  const categoryInput = getDocument("query", "[data-category-input]");
+
+  const addCategory = (rawValue) => {
+    const normalized = normalizeCategoryName(rawValue);
+    if (!normalized) return { ok: false, error: "Enter a category name." };
+
+    const exists = state.categories.some(
+      (category) => category.toLowerCase() === normalized.toLowerCase(),
+    );
+    if (exists) {
+      return { ok: false, error: "Category already exists." };
+    }
+
+    const nextCategories = [...state.categories, normalized];
+    const result = storage.saveCategories(nextCategories);
+    if (!result.ok) return result;
+
+    state.categories = nextCategories;
+    updateCategoryList(state.categories);
+    const categorySelect = getDocument("query", "[data-note-category]");
+    if (categorySelect) {
+      setCategoryOptions(categorySelect, state.categories, categorySelect.value);
+    }
+    return { ok: true };
+  };
+
+  if (categoryInput) {
+    categoryInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      const result = addCategory(categoryInput.value);
+      if (result.ok) {
+        categoryInput.value = "";
+      }
+    });
+  }
 
   document.addEventListener("click", (event) => {
     const saveButton = event.target.closest(".buttons-section__btn--primary");
@@ -276,7 +380,12 @@ const init = async () => {
         if (!values.title && !values.content && values.tags.length === 0)
           return;
 
-        const newNote = createNote(values.title, values.content, values.tags);
+        const newNote = createNote(
+          values.title,
+          values.content,
+          values.tags,
+          values.category,
+        );
         state.notes = [newNote, ...state.notes];
         state.activeNoteId = newNote.id;
 
@@ -312,6 +421,7 @@ const init = async () => {
           title: values.title,
           content: values.content,
           tags: values.tags,
+          category: values.category,
         });
         if (state.shareLinks?.[activeNote.id]) {
           delete state.shareLinks[activeNote.id];
@@ -349,6 +459,15 @@ const init = async () => {
     event.preventDefault();
 
     const action = actionEl.dataset.action;
+    if (action === "add-category") {
+      if (!categoryInput) return;
+      const result = addCategory(categoryInput.value);
+      if (result.ok) {
+        categoryInput.value = "";
+      }
+      return;
+    }
+
     const activeNote = state.notes.find(
       (note) => note.id === state.activeNoteId,
     );

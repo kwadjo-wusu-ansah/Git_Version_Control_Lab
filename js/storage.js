@@ -5,6 +5,7 @@ import {
   PREFS_KEY,
   SEEDED_KEY,
   STORAGE_KEY,
+  CATEGORIES_KEY,
   safeParse,
 } from "./utils.js";
 
@@ -91,6 +92,26 @@ export const loadPreferences = () => {
 
   const saved = safeParse(raw, {});
   return { ...DEFAULT_PREFS, ...saved };
+};
+
+/*this function saves categories to localStorage */
+export const saveCategories = (categories) => {
+  try {
+    const json = JSON.stringify(Array.isArray(categories) ? categories : []);
+    localStorage.setItem(CATEGORIES_KEY, json);
+    return { ok: true };
+  } catch (err) {
+    console.error("Failed to save categories:", err);
+    return { ok: false, error: "Could not save categories." };
+  }
+};
+
+/*this function loads categories from localStorage */
+export const loadCategories = () => {
+  const raw = localStorage.getItem(CATEGORIES_KEY);
+  if (!raw) return [];
+  const parsed = safeParse(raw, []);
+  return Array.isArray(parsed) ? parsed : [];
 };
 
 /*this function saves draft to session storage*/
