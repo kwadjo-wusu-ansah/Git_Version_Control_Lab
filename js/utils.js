@@ -2,6 +2,7 @@ export const STORAGE_KEY = "notes";
 export const PREFS_KEY = "prefs";
 export const DRAFT_KEY = "draft";
 export const SEEDED_KEY = "seeded_v1";
+export const CATEGORIES_KEY = "categories";
 
 export const DEFAULT_PREFS = {
   theme: "dark",
@@ -46,16 +47,32 @@ export function parseTags(raw) {
 /*this fucntion gets the value of an input element by selector */
 export function getInputValue(selector) {
   const element = document.querySelector(selector);
-  if (!element || !("value" in element)) return "";
+  if (!element) return "";
+  if (element.isContentEditable) return element.innerHTML;
+  if (!("value" in element)) return "";
   return element.value;
+}
+
+/*This function gets a safe value from a contenteditable element */
+export function getEditableValue(selector) {
+  const element = document.querySelector(selector);
+  if (!element) return "";
+  if (!element.isContentEditable) return getInputValue(selector);
+
+  const text = element.textContent ?? "";
+  const normalizedText = text.replace(/\u00a0/g, " ").trim();
+  if (!normalizedText) return "";
+
+  return element.innerHTML ?? "";
 }
 
 /*this function gets form values form note content*/
 export function getFormValues() {
   const title = getInputValue("[data-note-title]").trim();
-  const content = getInputValue("[data-note-content]");
+  const content = getEditableValue("[data-note-content]");
   const tags = parseTags(getInputValue("[data-note-tags]"));
-  return { title, content, tags };
+  const category = normalizeCategoryName(getInputValue("[data-note-category]"));
+  return { title, content, tags, category };
 }
 
 /*This function generates a unique key for a set of tags */
@@ -74,6 +91,13 @@ export function hasNoteChanges(note, nextValues) {
 
   if ((note.content ?? "") !== nextValues.content) return true;
 
+  if (
+    normalizeCategoryName(note.category) !==
+    normalizeCategoryName(nextValues.category)
+  ) {
+    return true;
+  }
+
   return tagsKey(note.tags) !== tagsKey(nextValues.tags);
 }
 
@@ -90,6 +114,46 @@ export function normalizeTags(tags) {
 
   return tagsArray;
 }
+
+/*this function normalizes a category name */
+export function normalizeCategoryName(category) {
+  return String(category ?? "").trim();
+}
+
+/*this function sets category options on a select element */
+export const setCategoryOptions = (
+  selectEl,
+  categories,
+  selectedValue = "",
+) => {
+  if (!selectEl) return;
+  const normalized = Array.from(
+    new Set((categories ?? []).map(normalizeCategoryName).filter(Boolean)),
+  );
+  const selected = normalizeCategoryName(selectedValue);
+  const hasSelected = selected
+    ? normalized.some(
+        (category) => category.toLowerCase() === selected.toLowerCase(),
+      )
+    : false;
+
+  const optionMarkup = [
+    `<option value="">No category</option>`,
+    ...normalized.map(
+      (category) =>
+        `<option value="${category.replace(/"/g, "&quot;")}">${category}</option>`,
+    ),
+  ];
+
+  if (selected && !hasSelected) {
+    optionMarkup.push(
+      `<option value="${selected.replace(/"/g, "&quot;")}">${selected}</option>`,
+    );
+  }
+
+  selectEl.innerHTML = optionMarkup.join("");
+  selectEl.value = selected || "";
+};
 
 /*This function diffs two sets of tags and returns added and removed tags */
 export function diffTags(prevTags, nextTags) {
@@ -152,6 +216,15 @@ export const toastDefinitions = {
   },
   "tag-removed": {
     message: "Tag removed successfully!",
+  },
+  "share-link-generated": {
+    message: "Share link generated.",
+  },
+  "share-link-copied": {
+    message: "Share link copied.",
+  },
+  "share-link-copy-failed": {
+    message: "Could not copy share link.",
   },
 };
 
@@ -449,6 +522,11 @@ export const isTagRoute = (route) => {
   return typeof route === "string" && route.startsWith("tag-");
 };
 
+/*this function return if this is a category route */
+export const isCategoryRoute = (route) => {
+  return typeof route === "string" && route.startsWith("category-");
+};
+
 /*this function return if this is a search route */
 export const isSearchRoute = (route) => {
   return route === "search";
@@ -464,6 +542,16 @@ export const getTagFromRoute = (route) => {
   }
 };
 
+/*this function returns the category from a category route */
+export const getCategoryFromRoute = (route) => {
+  if (!isCategoryRoute(route)) return "";
+  try {
+    return decodeURIComponent(route.slice(9));
+  } catch (err) {
+    return route.slice(9);
+  }
+};
+
 /*this function filters notes by a specific tag */
 export const filterNotesByTag = (notes, tag) => {
   const t = String(tag ?? "")
@@ -475,6 +563,16 @@ export const filterNotesByTag = (notes, tag) => {
     Array.isArray(note?.tags)
       ? note.tags.some((x) => String(x).toLowerCase() === t)
       : false,
+  );
+};
+
+/*this function filters notes by a specific category */
+export const filterNotesByCategory = (notes, category) => {
+  const c = normalizeCategoryName(category).toLowerCase();
+  if (!c) return notes;
+
+  return notes.filter(
+    (note) => normalizeCategoryName(note?.category).toLowerCase() === c,
   );
 };
 
@@ -501,6 +599,15 @@ export const noteContentTemplate = ({ isCreateMode = false } = {}) => `
   </div>
 
   <div class="note-content__detail-container">
+    <div class="note-content__tag-container note-content__category-container">
+      <div class="note-content__tag-flex-container" data-category-flex></div>
+      <span id="note-content__category-input">
+        <select
+          class="note-content__category-select"
+          data-note-category
+        ></select>
+      </span>
+    </div>
     <div class="note-content__tag-container">
       <div class="note-content__tag-flex-container" data-tag-flex></div>
       <span id="note-content__tag-input">
@@ -522,16 +629,64 @@ export const noteContentTemplate = ({ isCreateMode = false } = {}) => `
     </div>
   </div>
 
+  <div class="note-content__toolbar" role="toolbar" aria-label="Formatting">
+    <button
+      class="note-content__tool"
+      type="button"
+      data-format="bold"
+      aria-label="Bold"
+    >
+      <span class="note-content__tool-text note-content__tool-text--bold">B</span>
+    </button>
+    <button
+      class="note-content__tool"
+      type="button"
+      data-format="italic"
+      aria-label="Italic"
+    >
+      <span class="note-content__tool-text note-content__tool-text--italic">I</span>
+    </button>
+    <button
+      class="note-content__tool"
+      type="button"
+      data-format="underline"
+      aria-label="Underline"
+    >
+      <span class="note-content__tool-text note-content__tool-text--underline">U</span>
+    </button>
+  </div>
+
+  <div class="note-content__share" data-share-panel hidden>
+    <p class="note-content__share-label">Share link</p>
+    <div class="note-content__share-control">
+      <input
+        class="note-content__share-input"
+        type="text"
+        readonly
+        aria-label="Share link"
+        data-share-input
+      />
+      <button
+        class="note-content__share-button"
+        type="button"
+        data-share-copy
+      >
+        Copy
+      </button>
+    </div>
+  </div>
+
   <hr class="note-content__divider" />
 
   <div class="note-content__content-container">
-    <textarea
-      name="note-content"
-      id="note-content__text-area"
-      class="note-content__text-area"
-      placeholder="Start typing your note here..."
+    <div
+      class="note-content__editor"
+      contenteditable="true"
+      role="textbox"
+      aria-multiline="true"
+      data-placeholder="Start typing your note here..."
       data-note-content
-    ></textarea>
+    ></div>
   </div>
   <hr class="note-content__divider note-content__divider--bottom" />
 `;
@@ -564,6 +719,180 @@ export const createButtonsSection = () => {
   return section;
 };
 
+/*This function checks if a string looks like HTML */
+export const isProbablyHtml = (value) => {
+  const input = String(value ?? "").trim();
+  if (!input) return false;
+  return /<\/?[a-z][\s\S]*>/i.test(input);
+};
+
+/*This function sets content for a contenteditable editor */
+export const setEditorContent = (element, value) => {
+  if (!element) return;
+  const content = String(value ?? "");
+  if (!content) {
+    element.textContent = "";
+    return;
+  }
+  if (isProbablyHtml(content)) {
+    element.innerHTML = content;
+  } else {
+    element.textContent = content;
+  }
+};
+
+/*This function checks if a string looks like HTML */
+export const isProbablyHtml = (value) => {
+  const input = String(value ?? "").trim();
+  if (!input) return false;
+  return /<\/?[a-z][\s\S]*>/i.test(input);
+};
+
+/*This function builds the shared note view */
+export const buildSharedNoteContent = (container, note) => {
+  if (!container) return;
+  const tags = Array.isArray(note?.tags) ? note.tags.filter(Boolean) : [];
+
+  container.innerHTML = noteContentTemplate({ isCreateMode: false });
+  container.classList.add("note-content--readonly");
+
+  container
+    .querySelector("[data-tag-flex]")
+    .append(createTagIcon(), createTextSpan("Tags"));
+
+  container
+    .querySelector("[data-date-flex]")
+    .append(createDateIcon(), createTextSpan("Last edited"));
+
+  const titleInput = container.querySelector("[data-note-title]");
+  if (titleInput) {
+    titleInput.value = note?.title ?? "";
+    titleInput.setAttribute("readonly", "true");
+  }
+
+  const tagsInput = container.querySelector("[data-note-tags]");
+  if (tagsInput) {
+    tagsInput.value = tags.join(", ");
+    tagsInput.setAttribute("readonly", "true");
+  }
+
+  const lastEdited = container.querySelector("[data-last-edited-value]");
+  if (lastEdited) {
+    lastEdited.textContent = note?.lastEdited || "Not yet saved";
+  }
+
+  const contentField = container.querySelector("[data-note-content]");
+  if (contentField) {
+    const display = document.createElement("div");
+    display.className = "note-content__share-body";
+    display.setAttribute("data-note-content-display", "");
+    const value = note?.content ?? "";
+    if (isProbablyHtml(value)) {
+      display.innerHTML = value;
+    } else {
+      display.textContent = value;
+    }
+    contentField.replaceWith(display);
+  }
+};
+
+/*This function encodes a shared note payload for URLs */
+export const encodeSharePayload = (note = {}) => {
+  const payload = {
+    id: note?.id ?? "",
+    title: note?.title ?? "",
+    content: note?.content ?? "",
+    tags: Array.isArray(note?.tags) ? note.tags : [],
+    created: note?.created ?? "",
+    lastEdited: note?.lastEdited ?? "",
+  };
+
+  const json = JSON.stringify(payload);
+  const encoded = btoa(
+    encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, code) =>
+      String.fromCharCode(parseInt(code, 16)),
+    ),
+  );
+
+  return encoded.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+};
+
+/*This function builds a shareable URL for a payload token */
+export const buildShareUrl = (token) => {
+  if (!token) return "";
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("share", token);
+  return url.toString();
+};
+
+/*This function decodes a shared note payload token */
+export const decodeSharePayload = (token) => {
+  if (!token) return null;
+
+  const padded = token
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(token.length / 4) * 4, "=");
+
+  try {
+    const decoded = atob(padded);
+    const json = decodeURIComponent(
+      Array.from(decoded)
+        .map((ch) => `%${ch.charCodeAt(0).toString(16).padStart(2, "0")}`)
+        .join(""),
+    );
+    return safeParse(json, null);
+  } catch (err) {
+    return null;
+  }
+};
+
+/*This function updates the share panel link */
+export const setSharePanelLink = (link) => {
+  const panel = document.querySelector("[data-share-panel]");
+  const input = document.querySelector("[data-share-input]");
+  if (!panel || !input) return;
+
+  if (!link) {
+    panel.hidden = true;
+    input.value = "";
+    return;
+  }
+
+  panel.hidden = false;
+  input.value = link;
+};
+
+/*This function copies share link to clipboard */
+export const copyShareLink = async (link) => {
+  const value = String(link ?? "");
+  if (!value) return { ok: false, error: "No share link available." };
+
+  try {
+    await navigator.clipboard.writeText(value);
+    return { ok: true };
+  } catch (err) {
+    try {
+      const temp = document.createElement("textarea");
+      temp.value = value;
+      temp.setAttribute("readonly", "true");
+      temp.style.position = "fixed";
+      temp.style.top = "-1000px";
+      document.body.appendChild(temp);
+      temp.select();
+      const success = document.execCommand("copy");
+      temp.remove();
+      return success
+        ? { ok: true }
+        : { ok: false, error: "Could not copy link." };
+    } catch (fallbackError) {
+      return { ok: false, error: "Could not copy link." };
+    }
+  }
+};
+
 /*this function returns the sidebar info element */
 export const getSidebarInfoElement = () => {
   const sidebar = document.querySelector(".sidebar-all-notes");
@@ -585,7 +914,7 @@ export const getSidebarInfoElement = () => {
 };
 
 /*this function sets the sidebar all-notes info element for (archived, tag , search)*/
-export const setSidebarInfo = ({ mode, tag, query } = {}) => {
+export const setSidebarInfo = ({ mode, tag, category, query } = {}) => {
   const info = getSidebarInfoElement();
   if (!info) return;
 
@@ -614,6 +943,18 @@ export const setSidebarInfo = ({ mode, tag, query } = {}) => {
     highlight.textContent = tag || "";
     info.append(highlight);
     info.append('" tag are shown here.');
+    return;
+  }
+
+  if (mode === "category") {
+    info.className =
+      "sidebar-all-notes__helper-text sidebar-all-notes__helper-text--tag";
+    info.append('All notes in the "');
+    const highlight = document.createElement("span");
+    highlight.className = "sidebar-all-notes__helper-highlight";
+    highlight.textContent = category || "";
+    info.append(highlight);
+    info.append('" category are shown here.');
     return;
   }
 
@@ -706,6 +1047,40 @@ export const deleteActionMarkup = `
     </a>
   </li>
 `;
+export const shareActionMarkup = `
+  <li class="sidebar-right-menu__item">
+    <a href="#" class="sidebar-right-menu_link" data-action="share">
+      <svg
+        class="sidebar-right-menu__item-icon-stroke"
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          d="M15 7h2a4 4 0 0 1 0 8h-2"
+        />
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          d="M9 17H7a4 4 0 0 1 0-8h2"
+        />
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          d="M8 12h8"
+        />
+      </svg>
+      <p class="sidebar-right-menu__item-title">Share Note</p>
+    </a>
+  </li>
+`;
 /*this function renders the right side menu based on the mode ) (create, empty, archived state)*/
 export const renderRightMenu = (mode = "default") => {
   const nav = document.querySelector(".sidebar-right-menu__nav");
@@ -722,11 +1097,11 @@ export const renderRightMenu = (mode = "default") => {
   }
 
   if (mode === "archived") {
-    nav.innerHTML = `${restoreActionMarkup}${deleteActionMarkup}`;
+    nav.innerHTML = `${shareActionMarkup}${restoreActionMarkup}${deleteActionMarkup}`;
     return;
   }
 
-  nav.innerHTML = `${archiveActionMarkup}${deleteActionMarkup}`;
+  nav.innerHTML = `${shareActionMarkup}${archiveActionMarkup}${deleteActionMarkup}`;
 };
 
 /*this function render the create placeholder note in the sidebar */
@@ -800,13 +1175,17 @@ export const renderEmptyStateNote = (mode, { navDiv } = {}) => {
 };
 
 /*this function build note content (With the note information) */
-export const buildAllNotesContent = (container, note) => {
+export const buildAllNotesContent = (container, note, { categories = [] } = {}) => {
   const tags = Array.isArray(note?.tags) ? note.tags.filter(Boolean) : [];
 
   // 1) Render template
   container.innerHTML = noteContentTemplate({ isCreateMode: false });
 
   // 2) Insert icons/labels
+  container
+    .querySelector("[data-category-flex]")
+    .append(createTagIcon(), createTextSpan("Category"));
+
   container
     .querySelector("[data-tag-flex]")
     .append(createTagIcon(), createTextSpan("Tags"));
@@ -817,8 +1196,16 @@ export const buildAllNotesContent = (container, note) => {
 
   // 3) Populate values
   container.querySelector("[data-note-title]").value = note?.title ?? "";
+  setCategoryOptions(
+    container.querySelector("[data-note-category]"),
+    categories,
+    note?.category ?? "",
+  );
   container.querySelector("[data-note-tags]").value = tags.join(", ");
-  container.querySelector("[data-note-content]").value = note?.content ?? "";
+  setEditorContent(
+    container.querySelector("[data-note-content]"),
+    note?.content ?? "",
+  );
 
   // 4) Last edited
   container.querySelector("[data-last-edited-value]").textContent =
@@ -829,11 +1216,15 @@ export const buildAllNotesContent = (container, note) => {
 };
 
 /*this function builds the content for a new note  (Create Note) Empty Note*/
-export const buildCreateNoteContent = (container) => {
+export const buildCreateNoteContent = (container, { categories = [] } = {}) => {
   // 1) Render template
   container.innerHTML = noteContentTemplate({ isCreateMode: true });
 
   // 2) Insert icons/labels
+  container
+    .querySelector("[data-category-flex]")
+    .append(createTagIcon(), createTextSpan("Category"));
+
   container
     .querySelector("[data-tag-flex]")
     .append(createTagIcon(), createTextSpan("Tags"));
@@ -846,8 +1237,14 @@ export const buildCreateNoteContent = (container) => {
     );
 
   // 3) Defaults
+  setCategoryOptions(
+    container.querySelector("[data-note-category]"),
+    categories,
+    "",
+  );
   container.querySelector("[data-last-edited-value]").textContent =
     "Not yet saved";
+  setEditorContent(container.querySelector("[data-note-content]"), "");
 
   // 4) Buttons
   container.appendChild(createButtonsSection());
@@ -878,7 +1275,9 @@ export const pages = {
 };
 /*this function resolves the page key based on the current route*/
 export const resolvePageKey = (pageKey) => {
-  return pages[pageKey] || isTagRoute(pageKey) ? pageKey : "all-notes";
+  return pages[pageKey] || isTagRoute(pageKey) || isCategoryRoute(pageKey)
+    ? pageKey
+    : "all-notes";
 };
 
 /*this function sets the header title based on the current route*/
@@ -918,6 +1317,9 @@ export const getNotesForRoute = (state, route, { query, searchFn } = {}) => {
   }
   if (isTagRoute(route)) {
     return filterNotesByTag(notes, getTagFromRoute(route));
+  }
+  if (isCategoryRoute(route)) {
+    return filterNotesByCategory(notes, getCategoryFromRoute(route));
   }
   if (isSearchRoute(route)) {
     return typeof searchFn === "function" ? searchFn(notes, query) : notes;

@@ -6,15 +6,28 @@ import {
   toggleArchive,
   updateNote,
 } from "./noteManager.js";
-import { navigateTo, renderAllNotes, renderPage, showToast } from "./ui.js";
+import {
+  navigateTo,
+  renderAllNotes,
+  renderPage,
+  showToast,
+  updateCategoryList,
+} from "./ui.js";
 import {
   diffTags,
+  decodeSharePayload,
+  encodeSharePayload,
+  buildShareUrl,
+  buildSharedNoteContent,
+  copyShareLink,
   getDocument,
   getCheckedValue,
   getFormValues,
   hasNoteChanges,
+  normalizeCategoryName,
   normalizeTags,
   normalizeSearchQuery,
+  setCategoryOptions,
   setCheckedValue,
   openConfirmModal,
   isTagRoute,
@@ -186,11 +199,102 @@ const initSettingsPage = (prefs) => {
   });
 };
 
+// this function initializes formatting toolbar behavior
+const initFormattingToolbar = () => {
+  const validFormats = new Set(["bold", "italic", "underline"]);
+
+  const getEditor = () => getDocument("query", ".note-content__editor");
+
+  const setButtonState = (button, isActive) => {
+    button.classList.toggle("is-active", Boolean(isActive));
+  };
+
+  const syncToolbarState = () => {
+    const editor = getEditor();
+    if (!editor) return;
+
+    const selection = document.getSelection();
+    if (!selection || !selection.anchorNode) return;
+    if (!editor.contains(selection.anchorNode)) return;
+
+    const buttons = document.querySelectorAll("[data-format]");
+    buttons.forEach((button) => {
+      const format = button.getAttribute("data-format");
+      if (!validFormats.has(format)) return;
+      const isActive = document.queryCommandState(format);
+      setButtonState(button, isActive);
+    });
+  };
+
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-format]");
+    if (!button) return;
+
+    const format = button.getAttribute("data-format");
+    if (!validFormats.has(format)) return;
+
+    event.preventDefault();
+
+    const editor = getEditor();
+    if (!editor) return;
+
+    if (document.activeElement !== editor) {
+      editor.focus();
+    }
+
+    document.execCommand(format);
+    syncToolbarState();
+  });
+
+  document.addEventListener("selectionchange", syncToolbarState);
+  document.addEventListener("focusin", (event) => {
+    if (event.target.closest(".note-content__editor")) {
+      syncToolbarState();
+    }
+  });
+};
+
+const initShareView = () => {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("share");
+  if (!token) return false;
+
+  const payload = decodeSharePayload(token);
+  document.body.classList.add("is-share");
+
+  const headerTitle = getDocument("query", ".page-header__title");
+  if (headerTitle) {
+    headerTitle.textContent = payload?.title
+      ? `Shared: ${payload.title}`
+      : "Shared Note";
+  }
+
+  const container = getDocument("query", ".note-content");
+  if (!container) return true;
+
+  if (!payload) {
+    container.innerHTML = `
+      <div class="note-content__empty-state">
+        <p class="note-content__empty-title">Shared note not available.</p>
+        <p class="note-content__empty-text">
+          This link may be invalid or expired.
+        </p>
+      </div>
+    `;
+    return true;
+  }
+
+  buildSharedNoteContent(container, payload);
+  return true;
+};
+
 // this is the main initialization function
 const init = async () => {
   const prefs = storage.loadPreferences();
   applyTheme(prefs.theme);
   applyFont(prefs.font);
+
+  if (initShareView()) return;
 
   if (getDocument("query", ".settings-page")) {
     initSettingsPage(prefs);
@@ -210,14 +314,56 @@ const init = async () => {
 
   const notes = storage.loadNotes().map((note) => normalizeNote(note));
   renderAllNotes(notes, { activeNoteId: notes[0]?.id || null });
+  const categories = storage.loadCategories();
+  updateCategoryList(categories);
 
   const state = {
     notes,
     activeNoteId: notes[0]?.id || null,
     currentPage: "all-notes",
+    categories,
+    shareLinks: {},
   };
 
+  initFormattingToolbar();
   initSpa(state);
+
+  const categoryInput = getDocument("query", "[data-category-input]");
+
+  const addCategory = (rawValue) => {
+    const normalized = normalizeCategoryName(rawValue);
+    if (!normalized) return { ok: false, error: "Enter a category name." };
+
+    const exists = state.categories.some(
+      (category) => category.toLowerCase() === normalized.toLowerCase(),
+    );
+    if (exists) {
+      return { ok: false, error: "Category already exists." };
+    }
+
+    const nextCategories = [...state.categories, normalized];
+    const result = storage.saveCategories(nextCategories);
+    if (!result.ok) return result;
+
+    state.categories = nextCategories;
+    updateCategoryList(state.categories);
+    const categorySelect = getDocument("query", "[data-note-category]");
+    if (categorySelect) {
+      setCategoryOptions(categorySelect, state.categories, categorySelect.value);
+    }
+    return { ok: true };
+  };
+
+  if (categoryInput) {
+    categoryInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      const result = addCategory(categoryInput.value);
+      if (result.ok) {
+        categoryInput.value = "";
+      }
+    });
+  }
 
   document.addEventListener("click", (event) => {
     const saveButton = event.target.closest(".buttons-section__btn--primary");
@@ -236,7 +382,12 @@ const init = async () => {
         if (!values.title && !values.content && values.tags.length === 0)
           return;
 
-        const newNote = createNote(values.title, values.content, values.tags);
+        const newNote = createNote(
+          values.title,
+          values.content,
+          values.tags,
+          values.category,
+        );
         state.notes = [newNote, ...state.notes];
         state.activeNoteId = newNote.id;
 
@@ -272,7 +423,11 @@ const init = async () => {
           title: values.title,
           content: values.content,
           tags: values.tags,
+          category: values.category,
         });
+        if (state.shareLinks?.[activeNote.id]) {
+          delete state.shareLinks[activeNote.id];
+        }
 
         const result = storage.saveNotes(state.notes);
         if (!result.ok) {
@@ -347,6 +502,15 @@ const init = async () => {
     event.preventDefault();
 
     const action = actionEl.dataset.action;
+    if (action === "add-category") {
+      if (!categoryInput) return;
+      const result = addCategory(categoryInput.value);
+      if (result.ok) {
+        categoryInput.value = "";
+      }
+      return;
+    }
+
     if (action === "export-notes") {
       const result = exportAllNotesAsJson();
       if (!result.ok) {
@@ -395,6 +559,18 @@ const init = async () => {
       return;
     }
 
+    if (action === "share") {
+      const token = encodeSharePayload(activeNote);
+      const link = buildShareUrl(token);
+
+      state.shareLinks = state.shareLinks || {};
+      state.shareLinks[activeNote.id] = link;
+
+      renderPage(state.currentPage, state);
+      showToast("share-link-generated");
+      return;
+    }
+
     if (action === "restore") {
       state.notes = toggleArchive(state.notes, activeNote.id);
       const result = storage.saveNotes(state.notes);
@@ -419,6 +595,9 @@ const init = async () => {
       if (!confirmed) return;
 
       state.notes = deleteNote(state.notes, activeNote.id);
+      if (state.shareLinks?.[activeNote.id]) {
+        delete state.shareLinks[activeNote.id];
+      }
       if (state.activeNoteId === activeNote.id) {
         state.activeNoteId = null;
       }
@@ -432,6 +611,21 @@ const init = async () => {
       renderPage(state.currentPage, state);
       showToast("note-deleted");
     }
+  });
+
+  document.addEventListener("click", async (event) => {
+    const copyButton = event.target.closest("[data-share-copy]");
+    if (!copyButton) return;
+
+    event.preventDefault();
+    const activeNote = state.notes.find(
+      (note) => note.id === state.activeNoteId,
+    );
+    if (!activeNote) return;
+
+    const link = state?.shareLinks?.[activeNote.id] || "";
+    const result = await copyShareLink(link);
+    showToast(result.ok ? "share-link-copied" : "share-link-copy-failed");
   });
 };
 

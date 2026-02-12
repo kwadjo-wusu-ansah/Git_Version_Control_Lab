@@ -1,10 +1,11 @@
-import { formatDate, generateNoteId } from "./utils.js";
+import { formatDate, generateNoteId, normalizeCategoryName } from "./utils.js";
 
 /* This function normalize incoming notes (from data.json or older saved formats) into one format*/
 export const normalizeNote = (raw) => {
   const title = raw?.title ?? "";
   const content = raw?.content ?? "";
   const tags = Array.isArray(raw?.tags) ? raw.tags : [];
+  const category = normalizeCategoryName(raw?.category ?? raw?.folder ?? "");
 
   // support both naming styles
   const archived = raw?.archived ?? raw?.isArchived ?? false;
@@ -17,6 +18,7 @@ export const normalizeNote = (raw) => {
     title,
     content,
     tags,
+    category,
     archived,
     created: raw?.created ?? formatDate(),
     lastEdited: lastEditedRaw
@@ -28,7 +30,7 @@ export const normalizeNote = (raw) => {
 export class Note {
   #id;
 
-  constructor(title, content, tags = [], archived = false) {
+  constructor(title, content, tags = [], archived = false, category = "") {
     this.#id = generateNoteId();
     this.title = title?.trim() ?? "";
     this.content = content ?? "";
@@ -36,6 +38,7 @@ export class Note {
       ? tags.map((t) => String(t).trim()).filter(Boolean)
       : [];
     this.archived = Boolean(archived);
+    this.category = normalizeCategoryName(category);
     this.created = formatDate();
     this.lastEdited = formatDate();
   }
@@ -75,6 +78,9 @@ export class Note {
   update(updates = {}) {
     if (typeof updates.title === "string") this.title = updates.title.trim();
     if (typeof updates.content === "string") this.content = updates.content;
+    if (typeof updates.category === "string") {
+      this.category = normalizeCategoryName(updates.category);
+    }
     if (Array.isArray(updates.tags)) {
       this.tags = updates.tags.map((t) => String(t).trim()).filter(Boolean);
     }
@@ -89,6 +95,7 @@ export class Note {
       title: this.title,
       content: this.content,
       tags: this.tags,
+      category: this.category,
       archived: this.archived,
       created: this.created,
       lastEdited: this.lastEdited,
@@ -99,8 +106,8 @@ export class Note {
 // ---------- CRUD functions that work on an array you pass in ----------
 // This keeps noteManager independent of storage.js (clean architecture)
 
-export const createNote = (title, content, tags = []) => {
-  const note = new Note(title, content, tags);
+export const createNote = (title, content, tags = [], category = "") => {
+  const note = new Note(title, content, tags, false, category);
   return note.toJSON();
 };
 
@@ -114,6 +121,10 @@ export const updateNote = (notes, id, updates) => {
     if (note.id !== id) return note;
 
     const merged = { ...note, ...updates };
+
+    if (typeof updates?.category === "string") {
+      merged.category = normalizeCategoryName(updates.category);
+    }
 
     merged.lastEdited = formatDate();
 
