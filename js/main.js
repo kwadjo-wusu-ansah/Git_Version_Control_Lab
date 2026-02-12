@@ -192,6 +192,61 @@ const initSettingsPage = (prefs) => {
   });
 };
 
+// this function initializes formatting toolbar behavior
+const initFormattingToolbar = () => {
+  const validFormats = new Set(["bold", "italic", "underline"]);
+
+  const getEditor = () => getDocument("query", ".note-content__editor");
+
+  const setButtonState = (button, isActive) => {
+    button.classList.toggle("is-active", Boolean(isActive));
+  };
+
+  const syncToolbarState = () => {
+    const editor = getEditor();
+    if (!editor) return;
+
+    const selection = document.getSelection();
+    if (!selection || !selection.anchorNode) return;
+    if (!editor.contains(selection.anchorNode)) return;
+
+    const buttons = document.querySelectorAll("[data-format]");
+    buttons.forEach((button) => {
+      const format = button.getAttribute("data-format");
+      if (!validFormats.has(format)) return;
+      const isActive = document.queryCommandState(format);
+      setButtonState(button, isActive);
+    });
+  };
+
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-format]");
+    if (!button) return;
+
+    const format = button.getAttribute("data-format");
+    if (!validFormats.has(format)) return;
+
+    event.preventDefault();
+
+    const editor = getEditor();
+    if (!editor) return;
+
+    if (document.activeElement !== editor) {
+      editor.focus();
+    }
+
+    document.execCommand(format);
+    syncToolbarState();
+  });
+
+  document.addEventListener("selectionchange", syncToolbarState);
+  document.addEventListener("focusin", (event) => {
+    if (event.target.closest(".note-content__editor")) {
+      syncToolbarState();
+    }
+  });
+};
+
 // this is the main initialization function
 const init = async () => {
   const prefs = storage.loadPreferences();
@@ -226,6 +281,7 @@ const init = async () => {
     categories,
   };
 
+  initFormattingToolbar();
   initSpa(state);
 
   const categoryInput = getDocument("query", "[data-category-input]");

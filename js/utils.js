@@ -47,14 +47,29 @@ export function parseTags(raw) {
 /*this fucntion gets the value of an input element by selector */
 export function getInputValue(selector) {
   const element = document.querySelector(selector);
-  if (!element || !("value" in element)) return "";
+  if (!element) return "";
+  if (element.isContentEditable) return element.innerHTML;
+  if (!("value" in element)) return "";
   return element.value;
+}
+
+/*This function gets a safe value from a contenteditable element */
+export function getEditableValue(selector) {
+  const element = document.querySelector(selector);
+  if (!element) return "";
+  if (!element.isContentEditable) return getInputValue(selector);
+
+  const text = element.textContent ?? "";
+  const normalizedText = text.replace(/\u00a0/g, " ").trim();
+  if (!normalizedText) return "";
+
+  return element.innerHTML ?? "";
 }
 
 /*this function gets form values form note content*/
 export function getFormValues() {
   const title = getInputValue("[data-note-title]").trim();
-  const content = getInputValue("[data-note-content]");
+  const content = getEditableValue("[data-note-content]");
   const tags = parseTags(getInputValue("[data-note-tags]"));
   const category = normalizeCategoryName(getInputValue("[data-note-category]"));
   return { title, content, tags, category };
@@ -605,16 +620,44 @@ export const noteContentTemplate = ({ isCreateMode = false } = {}) => `
     </div>
   </div>
 
+  <div class="note-content__toolbar" role="toolbar" aria-label="Formatting">
+    <button
+      class="note-content__tool"
+      type="button"
+      data-format="bold"
+      aria-label="Bold"
+    >
+      <span class="note-content__tool-text note-content__tool-text--bold">B</span>
+    </button>
+    <button
+      class="note-content__tool"
+      type="button"
+      data-format="italic"
+      aria-label="Italic"
+    >
+      <span class="note-content__tool-text note-content__tool-text--italic">I</span>
+    </button>
+    <button
+      class="note-content__tool"
+      type="button"
+      data-format="underline"
+      aria-label="Underline"
+    >
+      <span class="note-content__tool-text note-content__tool-text--underline">U</span>
+    </button>
+  </div>
+
   <hr class="note-content__divider" />
 
   <div class="note-content__content-container">
-    <textarea
-      name="note-content"
-      id="note-content__text-area"
-      class="note-content__text-area"
-      placeholder="Start typing your note here..."
+    <div
+      class="note-content__editor"
+      contenteditable="true"
+      role="textbox"
+      aria-multiline="true"
+      data-placeholder="Start typing your note here..."
       data-note-content
-    ></textarea>
+    ></div>
   </div>
   <hr class="note-content__divider note-content__divider--bottom" />
 `;
@@ -645,6 +688,28 @@ export const createButtonsSection = () => {
   section.appendChild(cancelButton);
 
   return section;
+};
+
+/*This function checks if a string looks like HTML */
+export const isProbablyHtml = (value) => {
+  const input = String(value ?? "").trim();
+  if (!input) return false;
+  return /<\/?[a-z][\s\S]*>/i.test(input);
+};
+
+/*This function sets content for a contenteditable editor */
+export const setEditorContent = (element, value) => {
+  if (!element) return;
+  const content = String(value ?? "");
+  if (!content) {
+    element.textContent = "";
+    return;
+  }
+  if (isProbablyHtml(content)) {
+    element.innerHTML = content;
+  } else {
+    element.textContent = content;
+  }
 };
 
 /*this function returns the sidebar info element */
@@ -922,7 +987,10 @@ export const buildAllNotesContent = (container, note, { categories = [] } = {}) 
     note?.category ?? "",
   );
   container.querySelector("[data-note-tags]").value = tags.join(", ");
-  container.querySelector("[data-note-content]").value = note?.content ?? "";
+  setEditorContent(
+    container.querySelector("[data-note-content]"),
+    note?.content ?? "",
+  );
 
   // 4) Last edited
   container.querySelector("[data-last-edited-value]").textContent =
@@ -961,6 +1029,7 @@ export const buildCreateNoteContent = (container, { categories = [] } = {}) => {
   );
   container.querySelector("[data-last-edited-value]").textContent =
     "Not yet saved";
+  setEditorContent(container.querySelector("[data-note-content]"), "");
 
   // 4) Buttons
   container.appendChild(createButtonsSection());
